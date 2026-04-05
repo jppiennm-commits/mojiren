@@ -19,7 +19,7 @@ workflows:
       vars:
         APP_NAME: "もじれん"
         BUNDLE_ID: "com.jppiennm.mojiren"
-        APP_STORE_APPLE_ID: "1234567890"
+        APP_STORE_APPLE_ID: "6761683947"
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.jppiennm.mojiren
