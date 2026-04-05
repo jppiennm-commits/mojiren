@@ -1,0 +1,61 @@
+workflows:
+  ios-app-store:
+    name: もじれん iOS App Store
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+    integrations:
+      app_store_connect: codemagic-app-store-connect
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      vars:
+        APP_NAME: "もじれん"
+        BUNDLE_ID: "com.example.mojiren"
+        APP_STORE_APPLE_ID: "1234567890"
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.example.mojiren
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/Library/Caches/CocoaPods
+    scripts:
+      - name: Flutter packages
+        script: |
+          flutter pub get
+      - name: Install CocoaPods
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+      - name: Apply provisioning profiles
+        script: |
+          xcode-project use-profiles
+      - name: Flutter analyze
+        script: |
+          flutter analyze
+      - name: Flutter tests
+        script: |
+          flutter test
+      - name: Build signed IPA
+        script: |
+          BUILD_NUMBER=$(($(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID") + 1))
+          flutter build ipa --release \
+            --build-name=1.0.$BUILD_NUMBER \
+            --build-number=$BUILD_NUMBER \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false
