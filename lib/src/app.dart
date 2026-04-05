@@ -266,7 +266,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           DropdownButtonFormField<String>(
-            value: selectedCharacter.id,
+            initialValue: selectedCharacter.id,
             decoration: const InputDecoration(
               labelText: '文字を選ぶ',
               border: OutlineInputBorder(),
@@ -318,7 +318,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
       child: Column(
         children: [
           DropdownButtonFormField<WritingTool>(
-            value: selectedTool,
+            initialValue: selectedTool,
             decoration: const InputDecoration(
               labelText: '筆記具',
               border: OutlineInputBorder(),
@@ -332,7 +332,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
           ),
           const SizedBox(height: 14),
           DropdownButtonFormField<InputMode>(
-            value: inputMode,
+            initialValue: inputMode,
             decoration: const InputDecoration(
               labelText: '入力モード',
               border: OutlineInputBorder(),
@@ -420,7 +420,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
       child: Column(
         children: [
           DropdownButtonFormField<String>(
-            value: registerCharacterId,
+            initialValue: registerCharacterId,
             decoration: const InputDecoration(
               labelText: '登録する文字',
               border: OutlineInputBorder(),

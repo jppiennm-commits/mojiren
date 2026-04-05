@@ -85,7 +85,14 @@ class ModelPainter extends CustomPainter {
 
   void _drawCenteredText(Canvas canvas, String text, Offset center) {
     final painter = TextPainter(
-      text: const TextSpan(style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF9C401E))).copyWith(text: text),
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF9C401E),
+        ),
+      ),
       textDirection: TextDirection.ltr,
     )..layout();
     painter.paint(canvas, center - Offset(painter.width / 2, painter.height / 2));
