@@ -7,6 +7,8 @@ import 'data.dart';
 import 'models.dart';
 import 'painters.dart';
 
+enum LearningMode { model, practice, collection }
+
 class KakijunLabApp extends StatelessWidget {
   const KakijunLabApp({super.key});
 
@@ -36,14 +38,12 @@ class StrokePracticeHome extends StatelessWidget {
         if (snapshot.hasError) {
           return Scaffold(
             body: Center(
-              child: Text('漢字データの読み込みに失敗しました: ${snapshot.error}'),
+              child: Text('文字データの読み込みに失敗しました: ${snapshot.error}'),
             ),
           );
         }
         if (!snapshot.hasData) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         return StrokePracticeScreen(characters: snapshot.data!);
       },
@@ -63,6 +63,7 @@ class StrokePracticeScreen extends StatefulWidget {
 class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
   late CharacterModel selectedCharacter;
   late String registerCharacterId;
+  LearningMode currentMode = LearningMode.model;
   WritingTool selectedTool = WritingTool.brushPen;
   InputMode inputMode = InputMode.penPreferred;
   bool showGhostModel = true;
@@ -135,6 +136,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
         ),
       );
       memoController.clear();
+      currentMode = LearningMode.collection;
     });
   }
 
@@ -174,7 +176,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
 
   void startStroke(PointerDownEvent event) {
     if (!acceptsPointer(event.kind)) {
-      setState(() => inputStatus = 'この入力モードではその入力は使えません');
+      setState(() => inputStatus = 'この入力モードではその入力方法は使えません');
       return;
     }
     final pressure = normalizedPressure(event.pressure);
@@ -191,8 +193,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
     final pressure = normalizedPressure(event.pressure);
     setState(() {
       activeSamples = [...activeSamples, DrawSample(point: event.localPosition, pressure: pressure)];
-      inputStatus =
-          '${pointerLabel(event.kind)} | 圧力 ${pressure.toStringAsFixed(2)} | ${toolStyle.label}';
+      inputStatus = '${pointerLabel(event.kind)} | 圧力 ${pressure.toStringAsFixed(2)} | ${toolStyle.label}';
     });
   }
 
@@ -206,53 +207,117 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
     });
   }
 
+  void resetPractice() {
+    setState(() {
+      drawnStrokes.clear();
+      activeSamples = [];
+      inputStatus = '入力待ち';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final singleColumn = constraints.maxWidth < 900;
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                children: [
-                  HeroCard(character: selectedCharacter),
-                  const SizedBox(height: 18),
-                  Flex(
-                    direction: singleColumn ? Axis.vertical : Axis.horizontal,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: buildModelPanel()),
-                      SizedBox(width: singleColumn ? 0 : 18, height: singleColumn ? 18 : 0),
-                      Expanded(child: buildPracticePanel()),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Flex(
-                    direction: singleColumn ? Axis.vertical : Axis.horizontal,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: buildModelBoard()),
-                      SizedBox(width: singleColumn ? 0 : 18, height: singleColumn ? 18 : 0),
-                      Expanded(child: buildPracticeBoard()),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Flex(
-                    direction: singleColumn ? Axis.vertical : Axis.horizontal,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: buildRegisterPanel()),
-                      SizedBox(width: singleColumn ? 0 : 18, height: singleColumn ? 18 : 0),
-                      Expanded(child: buildSavedPanel()),
-                    ],
-                  ),
-                ],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            children: [
+              HeroCard(character: selectedCharacter, mode: currentMode),
+              const SizedBox(height: 18),
+              buildModeSwitch(),
+              const SizedBox(height: 18),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                child: switch (currentMode) {
+                  LearningMode.model => buildModelLayout(),
+                  LearningMode.practice => buildPracticeLayout(),
+                  LearningMode.collection => buildCollectionLayout(),
+                },
               ),
-            );
-          },
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget buildModeSwitch() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: SegmentedButton<LearningMode>(
+        segments: const [
+          ButtonSegment(value: LearningMode.model, label: Text('見本モード')),
+          ButtonSegment(value: LearningMode.practice, label: Text('練習モード')),
+          ButtonSegment(value: LearningMode.collection, label: Text('マイリスト')),
+        ],
+        selected: {currentMode},
+        onSelectionChanged: (selection) => setState(() => currentMode = selection.first),
+      ),
+    );
+  }
+
+  Widget buildModelLayout() {
+    return KeyedSubtree(
+      key: const ValueKey(LearningMode.model),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final singleColumn = constraints.maxWidth < 900;
+          return Flex(
+            direction: singleColumn ? Axis.vertical : Axis.horizontal,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: buildModelPanel()),
+              SizedBox(width: singleColumn ? 0 : 18, height: singleColumn ? 18 : 0),
+              Expanded(child: buildModelBoard()),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget buildPracticeLayout() {
+    return KeyedSubtree(
+      key: const ValueKey(LearningMode.practice),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final singleColumn = constraints.maxWidth < 900;
+          return Flex(
+            direction: singleColumn ? Axis.vertical : Axis.horizontal,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: buildPracticePanel()),
+              SizedBox(width: singleColumn ? 0 : 18, height: singleColumn ? 18 : 0),
+              Expanded(child: buildPracticeBoard()),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget buildCollectionLayout() {
+    return KeyedSubtree(
+      key: const ValueKey(LearningMode.collection),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final singleColumn = constraints.maxWidth < 900;
+          return Flex(
+            direction: singleColumn ? Axis.vertical : Axis.horizontal,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: buildRegisterPanel()),
+              SizedBox(width: singleColumn ? 0 : 18, height: singleColumn ? 18 : 0),
+              Expanded(child: buildSavedPanel()),
+            ],
+          );
+        },
       ),
     );
   }
@@ -267,10 +332,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
         children: [
           DropdownButtonFormField<String>(
             initialValue: selectedCharacter.id,
-            decoration: const InputDecoration(
-              labelText: '文字を選ぶ',
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(labelText: '文字を選ぶ', border: OutlineInputBorder()),
             items: [
               for (final character in widget.characters)
                 DropdownMenuItem(
@@ -301,7 +363,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          Text('${selectedCharacter.glyph} | ${selectedCharacter.reading} | ${selectedCharacter.meaning}'),
+          const Text('中央の十字リーダーと四分割線を見ながら、書き始めの位置と流れを確認できます。'),
           const SizedBox(height: 14),
           for (var i = 0; i < selectedCharacter.strokes.length; i++)
             NoteTile(index: i + 1, text: selectedCharacter.strokes[i].note),
@@ -312,17 +374,15 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
 
   Widget buildPracticePanel() {
     return PanelCard(
-      title: '練習設定',
+      title: '練習モード',
       kicker: 'Writing Tool',
       trailing: inputStatus,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           DropdownButtonFormField<WritingTool>(
             initialValue: selectedTool,
-            decoration: const InputDecoration(
-              labelText: '筆記具',
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(labelText: '筆記具', border: OutlineInputBorder()),
             items: const [
               DropdownMenuItem(value: WritingTool.brushPen, child: Text('筆ペン')),
               DropdownMenuItem(value: WritingTool.ballpoint, child: Text('ボールペン')),
@@ -333,10 +393,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
           const SizedBox(height: 14),
           DropdownButtonFormField<InputMode>(
             initialValue: inputMode,
-            decoration: const InputDecoration(
-              labelText: '入力モード',
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(labelText: '入力モード', border: OutlineInputBorder()),
             items: const [
               DropdownMenuItem(value: InputMode.penPreferred, child: Text('ペン優先')),
               DropdownMenuItem(value: InputMode.penOnly, child: Text('ペンのみ')),
@@ -346,18 +403,15 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('練習面に薄いお手本を表示'),
+            title: const Text('見本のうすい下書きを表示'),
+            subtitle: const Text('練習中も中央の十字リーダーを見ながら位置を合わせられます。'),
             value: showGhostModel,
             onChanged: (value) => setState(() => showGhostModel = value),
           ),
           Align(
             alignment: Alignment.centerLeft,
             child: OutlinedButton(
-              onPressed: () => setState(() {
-                drawnStrokes.clear();
-                activeSamples = [];
-                inputStatus = '入力待ち';
-              }),
+              onPressed: resetPractice,
               child: const Text('練習を消す'),
             ),
           ),
@@ -372,7 +426,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
     return PanelCard(
       title: '見本ボード',
       kicker: 'Model',
-      trailing: '注意点つき',
+      trailing: '補助線つき表示',
       child: AspectRatio(
         aspectRatio: 1,
         child: CustomPaint(
@@ -388,9 +442,9 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
 
   Widget buildPracticeBoard() {
     return PanelCard(
-      title: 'ペン練習ボード',
+      title: '練習ボード',
       kicker: 'Practice',
-      trailing: 'Apple Pencil / タッチ / マウス',
+      trailing: '十字リーダー表示',
       child: AspectRatio(
         aspectRatio: 1,
         child: Listener(
@@ -414,17 +468,15 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
 
   Widget buildRegisterPanel() {
     return PanelCard(
-      title: '自分の漢字を登録',
+      title: '文字を登録',
       kicker: 'My List',
       trailing: '複数保存',
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           DropdownButtonFormField<String>(
             initialValue: registerCharacterId,
-            decoration: const InputDecoration(
-              labelText: '登録する文字',
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(labelText: '登録する文字', border: OutlineInputBorder()),
             items: [
               for (final character in widget.characters)
                 DropdownMenuItem(
@@ -439,7 +491,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
             controller: memoController,
             decoration: const InputDecoration(
               labelText: 'メモ',
-              hintText: '例: テスト前によく練習する漢字',
+              hintText: '例: テスト前によく練習する文字',
               border: OutlineInputBorder(),
             ),
           ),
@@ -458,13 +510,11 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
 
   Widget buildSavedPanel() {
     return PanelCard(
-      title: '登録した漢字',
+      title: '登録した文字',
       kicker: 'Saved',
       trailing: '${savedCharacters.length} 件',
       child: savedCharacters.isEmpty
-          ? const EmptyTile(
-              message: 'まだ登録がありません。左のフォームから学習したい漢字を追加できます。',
-            )
+          ? const EmptyTile(message: 'まだ登録がありません。左のフォームから学習したい文字を追加できます。')
           : Column(
               children: [
                 for (final item in savedCharacters)
@@ -483,9 +533,32 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
 }
 
 class HeroCard extends StatelessWidget {
-  const HeroCard({super.key, required this.character});
+  const HeroCard({super.key, required this.character, required this.mode});
 
   final CharacterModel character;
+  final LearningMode mode;
+
+  String get modeTitle {
+    switch (mode) {
+      case LearningMode.model:
+        return '見本モード';
+      case LearningMode.practice:
+        return '練習モード';
+      case LearningMode.collection:
+        return 'マイリスト';
+    }
+  }
+
+  String get modeDescription {
+    switch (mode) {
+      case LearningMode.model:
+        return '書き順と要点を順番に確認する画面です。中心の十字リーダーで位置をつかみながら見本を見られます。';
+      case LearningMode.practice:
+        return 'Apple Pencil などのペン入力を想定した練習画面です。筆記具ごとの線の違いもここで確認できます。';
+      case LearningMode.collection:
+        return 'よく練習したい文字をためておく画面です。登録した文字からすぐ見本や練習に戻れます。';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -493,9 +566,7 @@ class HeroCard extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFF7E3), Color(0xFFF2E5D1)],
-        ),
+        gradient: const LinearGradient(colors: [Color(0xFFFFF7E3), Color(0xFFF2E5D1)]),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -504,20 +575,15 @@ class HeroCard extends StatelessWidget {
             direction: singleColumn ? Axis.vertical : Axis.horizontal,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Moji Practice App'),
-                    SizedBox(height: 10),
-                    Text(
-                      'もじれん',
-                      style: TextStyle(fontSize: 42, fontWeight: FontWeight.w700),
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      '見本を見て、止め・はね・はらいの要点を確認しながら、Apple Pencil やタッチペンでも練習できる文字練習アプリです。',
-                    ),
+                    const Text('Moji Practice App'),
+                    const SizedBox(height: 10),
+                    const Text('もじれん', style: TextStyle(fontSize: 42, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 12),
+                    Text(modeDescription),
                   ],
                 ),
               ),
@@ -532,7 +598,7 @@ class HeroCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('今日の練習'),
+                    Text(modeTitle),
                     const SizedBox(height: 8),
                     Text(character.glyph, style: Theme.of(context).textTheme.displayLarge),
                     const SizedBox(height: 8),
@@ -577,17 +643,9 @@ class PanelCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  '$kicker\n$title',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
+                child: Text('$kicker\n$title', style: const TextStyle(fontWeight: FontWeight.w700)),
               ),
-              Flexible(
-                child: Text(
-                  trailing,
-                  textAlign: TextAlign.right,
-                ),
-              ),
+              Flexible(child: Text(trailing, textAlign: TextAlign.right)),
             ],
           ),
           const SizedBox(height: 18),
@@ -616,11 +674,7 @@ class NoteTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: const Color(0xFFF7D4C5),
-            child: Text('$index'),
-          ),
+          CircleAvatar(radius: 14, backgroundColor: const Color(0xFFF7D4C5), child: Text('$index')),
           const SizedBox(width: 10),
           Expanded(child: Text(text)),
         ],
@@ -642,9 +696,7 @@ class ToolPreviewCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFFAF3), Color(0xFFF5EBDD)],
-        ),
+        gradient: const LinearGradient(colors: [Color(0xFFFFFAF3), Color(0xFFF5EBDD)]),
         border: Border.all(color: const Color(0xFFE0C8A9)),
       ),
       child: Column(
@@ -718,14 +770,9 @@ class SavedCharacterTile extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFFFFF), Color(0xFFF4E9D8)],
-              ),
+              gradient: const LinearGradient(colors: [Color(0xFFFFFFFF), Color(0xFFF4E9D8)]),
             ),
-            child: Text(
-              character.glyph,
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+            child: Text(character.glyph, style: Theme.of(context).textTheme.headlineMedium),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -741,7 +788,7 @@ class SavedCharacterTile extends StatelessWidget {
           const SizedBox(width: 12),
           Column(
             children: [
-              OutlinedButton(onPressed: onSelect, child: const Text('表示')),
+              OutlinedButton(onPressed: onSelect, child: const Text('開く')),
               const SizedBox(height: 8),
               OutlinedButton(onPressed: onDelete, child: const Text('削除')),
             ],

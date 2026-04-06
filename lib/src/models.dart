@@ -153,7 +153,7 @@ class ToolStyle {
           baseWidth: 4.2,
           pressureBoost: 8.0,
           opacity: 0.94,
-          description: '筆圧で太さが変わる、はらいが見やすい表示です。',
+          description: '強弱が出やすく、はねやはらいの動きが見えやすい表示です。',
         );
       case WritingTool.ballpoint:
         return const ToolStyle(
@@ -163,7 +163,7 @@ class ToolStyle {
           baseWidth: 3.2,
           pressureBoost: 2.0,
           opacity: 0.96,
-          description: '均一で読みやすい線です。止めやはねの位置確認に向いています。',
+          description: '一定の太さで、止めや線の位置関係を確認しやすい表示です。',
         );
       case WritingTool.pencil:
         return const ToolStyle(
@@ -173,7 +173,7 @@ class ToolStyle {
           baseWidth: 2.4,
           pressureBoost: 3.2,
           opacity: 0.78,
-          description: '少しやわらかい線で、下書きのように練習できます。',
+          description: 'やわらかい線で、小さなずれにも気づきやすい練習向け表示です。',
         );
     }
   }

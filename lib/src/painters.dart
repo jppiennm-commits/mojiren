@@ -24,8 +24,12 @@ class BoardPainter {
       ..color = const Color(0x2A7E633E)
       ..strokeWidth = 1;
     final guidePaint = Paint()
-      ..color = const Color(0x33CB6238)
-      ..strokeWidth = 1.2;
+      ..color = const Color(0x55CB6238)
+      ..strokeWidth = 2.2;
+    final leaderPaint = Paint()
+      ..color = const Color(0x99CB6238)
+      ..strokeWidth = 3.4
+      ..strokeCap = StrokeCap.round;
 
     for (final ratio in [0.25, 0.75]) {
       canvas.drawLine(Offset(size.width * ratio, 0), Offset(size.width * ratio, size.height), gridPaint);
@@ -33,6 +37,33 @@ class BoardPainter {
     }
     canvas.drawLine(Offset(size.width / 2, 0), Offset(size.width / 2, size.height), guidePaint);
     canvas.drawLine(Offset(0, size.height / 2), Offset(size.width, size.height / 2), guidePaint);
+
+    final center = Offset(size.width / 2, size.height / 2);
+    const arm = 18.0;
+    canvas.drawLine(center.translate(-arm, 0), center.translate(arm, 0), leaderPaint);
+    canvas.drawLine(center.translate(0, -arm), center.translate(0, arm), leaderPaint);
+
+    final edgeArm = size.width * 0.08;
+    canvas.drawLine(
+      Offset(size.width / 2 - edgeArm, 10),
+      Offset(size.width / 2 + edgeArm, 10),
+      leaderPaint,
+    );
+    canvas.drawLine(
+      Offset(size.width / 2 - edgeArm, size.height - 10),
+      Offset(size.width / 2 + edgeArm, size.height - 10),
+      leaderPaint,
+    );
+    canvas.drawLine(
+      Offset(10, size.height / 2 - edgeArm),
+      Offset(10, size.height / 2 + edgeArm),
+      leaderPaint,
+    );
+    canvas.drawLine(
+      Offset(size.width - 10, size.height / 2 - edgeArm),
+      Offset(size.width - 10, size.height / 2 + edgeArm),
+      leaderPaint,
+    );
   }
 
   static Path pathFor(List<StrokePoint> points, Size size) {
