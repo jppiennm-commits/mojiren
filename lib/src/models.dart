@@ -66,6 +66,8 @@ class CharacterModel {
   final String meaning;
   final List<StrokeSegment> strokes;
 
+  bool get hasStrokeModel => strokes.isNotEmpty;
+
   factory CharacterModel.fromMap(Map<String, dynamic> map) {
     return CharacterModel(
       id: map['id'] as String,
@@ -97,12 +99,12 @@ class CharacterModel {
 class SavedCharacter {
   const SavedCharacter({
     required this.id,
-    required this.characterId,
+    required this.text,
     required this.memo,
   });
 
   final String id;
-  final String characterId;
+  final String text;
   final String memo;
 }
 

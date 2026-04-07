@@ -87,6 +87,7 @@ class ModelPainter extends CustomPainter {
     required this.style,
     this.showNotes = true,
     this.showStrokeNumbers = true,
+    this.showReferenceGlyph = true,
   });
 
   final CharacterModel character;
@@ -94,10 +95,14 @@ class ModelPainter extends CustomPainter {
   final ToolStyle style;
   final bool showNotes;
   final bool showStrokeNumbers;
+  final bool showReferenceGlyph;
 
   @override
   void paint(Canvas canvas, Size size) {
     BoardPainter.paintBase(canvas, size);
+    if (showReferenceGlyph) {
+      _drawReferenceGlyph(canvas, size);
+    }
 
     for (var i = 0; i < character.strokes.length; i++) {
       final stroke = character.strokes[i];
@@ -137,6 +142,34 @@ class ModelPainter extends CustomPainter {
     painter.paint(canvas, center - Offset(painter.width / 2, painter.height / 2));
   }
 
+  void _drawReferenceGlyph(Canvas canvas, Size size) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: character.glyph,
+        style: TextStyle(
+          color: const Color(0xFF5A4635).withValues(alpha: character.hasStrokeModel ? 0.12 : 0.32),
+          fontSize: size.width * 0.6,
+          height: 1,
+          fontFamily: 'YuKyokasho',
+          fontFamilyFallback: const [
+            'STKaiti',
+            'Kaiti SC',
+            'Hiragino Mincho ProN',
+            'Yu Mincho',
+            'serif',
+          ],
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout(maxWidth: size.width * 0.9);
+    painter.paint(
+      canvas,
+      Offset((size.width - painter.width) / 2, (size.height - painter.height) / 2 - size.height * 0.03),
+    );
+  }
+
   void _drawNote(Canvas canvas, String note, Offset offset, bool visible) {
     final painter = TextPainter(
       text: TextSpan(
@@ -170,7 +203,8 @@ class ModelPainter extends CustomPainter {
         oldDelegate.shownStrokeCount != shownStrokeCount ||
         oldDelegate.style != style ||
         oldDelegate.showNotes != showNotes ||
-        oldDelegate.showStrokeNumbers != showStrokeNumbers;
+        oldDelegate.showStrokeNumbers != showStrokeNumbers ||
+        oldDelegate.showReferenceGlyph != showReferenceGlyph;
   }
 }
 
@@ -194,6 +228,7 @@ class PracticePainter extends CustomPainter {
     BoardPainter.paintBase(canvas, size);
 
     if (showGhost) {
+      _drawGhostGlyph(canvas, size);
       final ghostPaint = Paint()
         ..color = style.color.withValues(alpha: 0.14)
         ..strokeWidth = math.max(2, style.modelWidth * size.width / 420)
@@ -211,6 +246,34 @@ class PracticePainter extends CustomPainter {
     if (activeStroke.isNotEmpty) {
       _drawPressureStroke(canvas, activeStroke);
     }
+  }
+
+  void _drawGhostGlyph(Canvas canvas, Size size) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: character.glyph,
+        style: TextStyle(
+          color: style.color.withValues(alpha: character.hasStrokeModel ? 0.08 : 0.2),
+          fontSize: size.width * 0.58,
+          height: 1,
+          fontFamily: 'YuKyokasho',
+          fontFamilyFallback: const [
+            'STKaiti',
+            'Kaiti SC',
+            'Hiragino Mincho ProN',
+            'Yu Mincho',
+            'serif',
+          ],
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout(maxWidth: size.width * 0.9);
+    painter.paint(
+      canvas,
+      Offset((size.width - painter.width) / 2, (size.height - painter.height) / 2 - size.height * 0.03),
+    );
   }
 
   void _drawPressureStroke(Canvas canvas, List<DrawSample> samples) {
