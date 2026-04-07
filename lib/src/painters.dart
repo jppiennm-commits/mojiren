@@ -85,11 +85,15 @@ class ModelPainter extends CustomPainter {
     required this.character,
     required this.shownStrokeCount,
     required this.style,
+    this.showNotes = true,
+    this.showStrokeNumbers = true,
   });
 
   final CharacterModel character;
   final int shownStrokeCount;
   final ToolStyle style;
+  final bool showNotes;
+  final bool showStrokeNumbers;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -108,9 +112,13 @@ class ModelPainter extends CustomPainter {
       canvas.drawPath(path, paint);
 
       final start = stroke.points.first.scale(size);
-      canvas.drawCircle(start, 9, Paint()..color = const Color(0xFFCB6238));
-      _drawCenteredText(canvas, '${i + 1}', start.translate(0, -18));
-      _drawNote(canvas, stroke.note, stroke.notePosition.scale(size), visible);
+      if (showStrokeNumbers) {
+        canvas.drawCircle(start, 9, Paint()..color = const Color(0xFFCB6238));
+        _drawCenteredText(canvas, '${i + 1}', start.translate(0, -18));
+      }
+      if (showNotes && stroke.note.isNotEmpty) {
+        _drawNote(canvas, stroke.note, stroke.notePosition.scale(size), visible);
+      }
     }
   }
 
@@ -160,7 +168,9 @@ class ModelPainter extends CustomPainter {
   bool shouldRepaint(covariant ModelPainter oldDelegate) {
     return oldDelegate.character != character ||
         oldDelegate.shownStrokeCount != shownStrokeCount ||
-        oldDelegate.style != style;
+        oldDelegate.style != style ||
+        oldDelegate.showNotes != showNotes ||
+        oldDelegate.showStrokeNumbers != showStrokeNumbers;
   }
 }
 
