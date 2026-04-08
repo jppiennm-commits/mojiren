@@ -60,3 +60,43 @@ workflows:
         auth: integration
         submit_to_testflight: true
         submit_to_app_store: false
+
+  android-release:
+    name: もじれん Android Release
+    max_build_duration: 120
+    instance_type: linux_x2
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+    environment:
+      flutter: stable
+      vars:
+        PACKAGE_NAME: "com.jppiennm.mojiren"
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/.gradle/caches
+    scripts:
+      - name: Flutter packages
+        script: |
+          flutter pub get
+      - name: Flutter analyze
+        script: |
+          flutter analyze
+      - name: Flutter tests
+        script: |
+          flutter test
+      - name: Build appbundle
+        script: |
+          APP_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')
+          BUILD_NUMBER=$(date +%y%j%H%M)
+          flutter build appbundle --release \
+            --build-name="$APP_VERSION" \
+            --build-number="$BUILD_NUMBER"
+    artifacts:
+      - build/app/outputs/bundle/release/*.aab
+      - build/app/outputs/flutter-apk/*.apk
