@@ -39,7 +39,9 @@ class StrokePracticeHome extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Scaffold(
-            body: Center(child: Text('文字データの読み込みに失敗しました: ${snapshot.error}')),
+            body: Center(
+              child: Text('文字データの読み込みに失敗しました: ${snapshot.error}'),
+            ),
           );
         }
         if (!snapshot.hasData) {
@@ -84,6 +86,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
     super.initState();
     characterMap = {for (final character in widget.characters) character.glyph: character};
     selectedCharacter = widget.characters.first;
+    shownStrokeCount = selectedCharacter.strokes.length;
   }
 
   @override
@@ -111,7 +114,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
     playbackTimer?.cancel();
     setState(() {
       selectedCharacter = character;
-      shownStrokeCount = 0;
+      shownStrokeCount = character.strokes.length;
       activeSamples = [];
       drawnStrokes.clear();
       inputStatus = '入力待ち';
@@ -154,22 +157,40 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
   }
 
   void playModel() {
+    if (!selectedCharacter.hasStrokeModel) {
+      return;
+    }
     playbackTimer?.cancel();
     setState(() => shownStrokeCount = 0);
-    revealNextStroke();
-    playbackTimer = Timer.periodic(const Duration(milliseconds: 700), (_) {
-      if (mounted) {
-        revealNextStroke();
+    playbackTimer = Timer.periodic(const Duration(milliseconds: 650), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
       }
+      if (shownStrokeCount >= selectedCharacter.strokes.length) {
+        timer.cancel();
+        return;
+      }
+      setState(() => shownStrokeCount += 1);
     });
   }
 
   void revealNextStroke() {
-    if (shownStrokeCount >= selectedCharacter.strokes.length) {
-      playbackTimer?.cancel();
+    if (!selectedCharacter.hasStrokeModel) {
       return;
     }
-    setState(() => shownStrokeCount += 1);
+    setState(() {
+      if (shownStrokeCount >= selectedCharacter.strokes.length) {
+        shownStrokeCount = 1;
+      } else {
+        shownStrokeCount += 1;
+      }
+    });
+  }
+
+  void resetModel() {
+    playbackTimer?.cancel();
+    setState(() => shownStrokeCount = 0);
   }
 
   void addSavedCharacter() {
@@ -178,8 +199,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
       return;
     }
     setState(() {
-      savedCharacters.insert(
-        0,
+      savedCharacters.add(
         SavedCharacter(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
           text: text,
@@ -272,29 +292,18 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
     return Scaffold(
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 18),
           child: Column(
             children: [
-              HeroCard(character: selectedCharacter, mode: currentMode),
-              const SizedBox(height: 18),
-              buildModeSwitch(),
-              const SizedBox(height: 18),
+              buildTopBar(),
+              const SizedBox(height: 14),
               Expanded(
                 child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
+                  duration: const Duration(milliseconds: 200),
                   child: switch (currentMode) {
-                    LearningMode.model => buildScrollableContent(
-                        key: const ValueKey(LearningMode.model),
-                        child: buildModelLayout(),
-                      ),
-                    LearningMode.practice => KeyedSubtree(
-                        key: const ValueKey(LearningMode.practice),
-                        child: buildPracticeLayout(),
-                      ),
-                    LearningMode.collection => buildScrollableContent(
-                        key: const ValueKey(LearningMode.collection),
-                        child: buildCollectionLayout(),
-                      ),
+                    LearningMode.model => buildModelMode(key: const ValueKey('model')),
+                    LearningMode.practice => buildPracticeMode(key: const ValueKey('practice')),
+                    LearningMode.collection => buildCollectionMode(key: const ValueKey('collection')),
                   },
                 ),
               ),
@@ -305,140 +314,52 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
     );
   }
 
-  Widget buildScrollableContent({required Key key, required Widget child}) {
-    return KeyedSubtree(
-      key: key,
-      child: SingleChildScrollView(child: child),
-    );
-  }
-
-  Widget buildModeSwitch() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: SegmentedButton<LearningMode>(
-        segments: const [
-          ButtonSegment(value: LearningMode.model, label: Text('見本モード')),
-          ButtonSegment(value: LearningMode.practice, label: Text('練習モード')),
-          ButtonSegment(value: LearningMode.collection, label: Text('マイリスト')),
-        ],
-        selected: {currentMode},
-        onSelectionChanged: (selection) => setState(() => currentMode = selection.first),
-      ),
-    );
-  }
-
-  Widget buildModelLayout() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final singleColumn = constraints.maxWidth < 900;
-        if (singleColumn) {
-          return Column(
-            children: [
-              buildModelPanel(),
-              const SizedBox(height: 18),
-              buildModelBoard(),
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: buildModelPanel()),
-            const SizedBox(width: 18),
-            Expanded(child: buildModelBoard()),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget buildPracticeLayout() {
-    if (!practiceSetupDone) {
-      return SingleChildScrollView(child: buildPracticeSetupCard());
-    }
-
-    return Column(
+  Widget buildTopBar() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        PanelCard(
-          title: '練習ヘッダー',
-          kicker: 'Practice',
-          trailing: inputStatus,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: CharacterPickerButton(
-                      label: '文字を検索して変更',
-                      character: selectedCharacter,
-                      onTap: () => pickSingleCharacter(
-                        title: '練習する文字を検索',
-                        initialCharacter: selectedCharacter,
-                        onSelected: selectCharacter,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton(
-                    onPressed: () => setState(() => practiceSetupDone = false),
-                    child: const Text('設定変更'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                height: 140,
-                child: CharacterMiniBoard(character: selectedCharacter, style: toolStyle),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
         Expanded(
-          child: PanelCard(
-            title: '練習ボード',
-            kicker: 'Practice Board',
-            trailing: toolStyle.label,
-            child: Column(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Row(
               children: [
+                Text(selectedCharacter.glyph, style: kaishoDisplayStyle(context).copyWith(fontSize: 34)),
+                const SizedBox(width: 14),
                 Expanded(
-                  child: Listener(
-                    onPointerDown: startStroke,
-                    onPointerMove: updateStroke,
-                    onPointerUp: (_) => endStroke(),
-                    onPointerCancel: (_) => endStroke(),
-                    child: SizedBox.expand(
-                      child: CustomPaint(
-                        painter: PracticePainter(
-                          character: selectedCharacter,
-                          showGhost: showGhostModel,
-                          style: toolStyle,
-                          strokes: drawnStrokes,
-                          activeStroke: activeSamples,
-                        ),
-                      ),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('もじれん', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 2),
+                      Text(modeDescription(currentMode)),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    FilledButton.tonal(onPressed: resetPractice, child: const Text('練習を消す')),
-                    OutlinedButton(
-                      onPressed: () => setState(() => showGhostModel = !showGhostModel),
-                      child: Text(showGhostModel ? '下書きを隠す' : '下書きを表示'),
-                    ),
-                  ],
                 ),
               ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+        SizedBox(
+          width: 280,
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: SegmentedButton<LearningMode>(
+              segments: const [
+                ButtonSegment(value: LearningMode.model, label: Text('見本')),
+                ButtonSegment(value: LearningMode.practice, label: Text('練習')),
+                ButtonSegment(value: LearningMode.collection, label: Text('マイリスト')),
+              ],
+              selected: {currentMode},
+              onSelectionChanged: (selection) => setState(() => currentMode = selection.first),
             ),
           ),
         ),
@@ -446,103 +367,146 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
     );
   }
 
-  Widget buildCollectionLayout() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final singleColumn = constraints.maxWidth < 980;
-        if (singleColumn) {
-          return Column(
-            children: [
-              buildRegisterPanel(),
-              const SizedBox(height: 18),
-              buildSavedPanel(),
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(flex: 4, child: buildRegisterPanel()),
-            const SizedBox(width: 18),
-            Expanded(flex: 6, child: buildSavedPanel()),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget buildModelPanel() {
-    return PanelCard(
-      title: '見本モード',
-      kicker: 'Character',
-      trailing: selectedCharacter.hasStrokeModel
-          ? '$shownStrokeCount / ${selectedCharacter.strokes.length} 画'
-          : '楷書見本',
+  Widget buildModelMode({required Key key}) {
+    return KeyedSubtree(
+      key: key,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CharacterPickerButton(
-            label: '文字を検索して選ぶ',
-            character: selectedCharacter,
-            onTap: () => pickSingleCharacter(
-              title: '見本にする文字を検索',
-              initialCharacter: selectedCharacter,
-              onSelected: selectCharacter,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
+          Row(
             children: [
-              FilledButton(
-                onPressed: selectedCharacter.hasStrokeModel ? playModel : null,
-                child: const Text('再生'),
+              Expanded(
+                child: CharacterPickerButton(
+                  label: '文字を検索して選ぶ',
+                  character: selectedCharacter,
+                  onTap: () => pickSingleCharacter(
+                    title: '見本にする文字を検索',
+                    initialCharacter: selectedCharacter,
+                    onSelected: selectCharacter,
+                  ),
+                ),
               ),
+              const SizedBox(width: 12),
+              FilledButton(onPressed: selectedCharacter.hasStrokeModel ? playModel : null, child: const Text('再生')),
+              const SizedBox(width: 8),
               FilledButton.tonal(
                 onPressed: selectedCharacter.hasStrokeModel ? revealNextStroke : null,
-                child: const Text('一画ずつ'),
+                child: const Text('1画ずつ'),
               ),
-              OutlinedButton(
-                onPressed: () {
-                  playbackTimer?.cancel();
-                  setState(() => shownStrokeCount = 0);
-                },
-                child: const Text('最初に戻す'),
-              ),
+              const SizedBox(width: 8),
+              OutlinedButton(onPressed: resetModel, child: const Text('最初に戻す')),
             ],
           ),
-          const SizedBox(height: 14),
-          Text(
-            selectedCharacter.hasStrokeModel
-                ? '見本の字は楷書系フォントで表示し、見本ボードでも補助線つきで確認できます。'
-                : 'この文字は楷書系フォントの見本表示に対応しています。書き順データはまだ入っていません。',
+          const SizedBox(height: 18),
+          Expanded(
+            child: PanelCard(
+              title: '見本ボード',
+              kicker: 'Model Board',
+              trailing: selectedCharacter.hasStrokeModel
+                  ? '$shownStrokeCount / ${selectedCharacter.strokes.length} 画'
+                  : '楷書見本',
+              expandChild: true,
+              child: SizedBox.expand(
+                child: CustomPaint(
+                  painter: ModelPainter(
+                    character: selectedCharacter,
+                    shownStrokeCount: shownStrokeCount,
+                    style: toolStyle,
+                  ),
+                ),
+              ),
+            ),
           ),
-          if (selectedCharacter.hasStrokeModel) ...[
-            const SizedBox(height: 14),
-            for (var i = 0; i < selectedCharacter.strokes.length; i++)
-              NoteTile(index: i + 1, text: selectedCharacter.strokes[i].note),
-          ],
         ],
       ),
     );
   }
 
-  Widget buildModelBoard() {
-    return PanelCard(
-      title: '見本ボード',
-      kicker: 'Model',
-      trailing: '楷書 + 補助線',
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: CustomPaint(
-          painter: ModelPainter(
-            character: selectedCharacter,
-            shownStrokeCount: shownStrokeCount,
-            style: toolStyle,
-          ),
-        ),
-      ),
+  Widget buildPracticeMode({required Key key}) {
+    return KeyedSubtree(
+      key: key,
+      child: !practiceSetupDone
+          ? SingleChildScrollView(child: buildPracticeSetupCard())
+          : Column(
+              children: [
+                PanelCard(
+                  title: '練習ヘッダー',
+                  kicker: 'Practice',
+                  trailing: inputStatus,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: CharacterPickerButton(
+                              label: '文字を検索して変更',
+                              character: selectedCharacter,
+                              onTap: () => pickSingleCharacter(
+                                title: '練習する文字を検索',
+                                initialCharacter: selectedCharacter,
+                                onSelected: selectCharacter,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          OutlinedButton(
+                            onPressed: () => setState(() => practiceSetupDone = false),
+                            child: const Text('設定変更'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        height: 132,
+                        child: CharacterMiniBoard(character: selectedCharacter, style: toolStyle),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Expanded(
+                  child: PanelCard(
+                    title: '練習ボード',
+                    kicker: 'Practice Board',
+                    trailing: toolStyle.label,
+                    expandChild: true,
+                    child: SizedBox.expand(
+                      child: Listener(
+                        onPointerDown: startStroke,
+                        onPointerMove: updateStroke,
+                        onPointerUp: (_) => endStroke(),
+                        onPointerCancel: (_) => endStroke(),
+                        behavior: HitTestBehavior.opaque,
+                        child: CustomPaint(
+                          painter: PracticePainter(
+                            character: selectedCharacter,
+                            showGhost: showGhostModel,
+                            style: toolStyle,
+                            strokes: drawnStrokes,
+                            activeStroke: activeSamples,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      FilledButton.tonal(onPressed: resetPractice, child: const Text('練習を消す')),
+                      OutlinedButton(
+                        onPressed: () => setState(() => showGhostModel = !showGhostModel),
+                        child: Text(showGhostModel ? '下書きを隠す' : '下書きを表示'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -601,6 +565,19 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
     );
   }
 
+  Widget buildCollectionMode({required Key key}) {
+    return KeyedSubtree(
+      key: key,
+      child: Column(
+        children: [
+          buildRegisterPanel(),
+          const SizedBox(height: 18),
+          Expanded(child: buildSavedPanel()),
+        ],
+      ),
+    );
+  }
+
   Widget buildRegisterPanel() {
     return PanelCard(
       title: '文字を登録',
@@ -653,103 +630,24 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
       title: '登録した文字',
       kicker: 'Saved',
       trailing: '${savedCharacters.length} 件',
+      expandChild: true,
       child: savedCharacters.isEmpty
           ? const EmptyTile(message: 'まだ登録がありません。検索から1文字ずつ追加して、縦書きの練習セットを作れます。')
-          : Column(
-              children: [
-                for (final item in savedCharacters)
-                  SavedCharacterTile(
-                    item: item,
-                    resolver: modelForGlyph,
-                    onSelect: () => selectCharacter(modelForGlyph(item.text.characters.first)),
-                    onDelete: () => setState(() {
-                      savedCharacters.removeWhere((entry) => entry.id == item.id);
-                    }),
-                  ),
-              ],
+          : ListView.separated(
+              itemCount: savedCharacters.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final item = savedCharacters[index];
+                return SavedCharacterTile(
+                  item: item,
+                  resolver: modelForGlyph,
+                  onSelect: () => selectCharacter(modelForGlyph(item.text.characters.first)),
+                  onDelete: () => setState(() {
+                    savedCharacters.removeWhere((entry) => entry.id == item.id);
+                  }),
+                );
+              },
             ),
-    );
-  }
-}
-
-class HeroCard extends StatelessWidget {
-  const HeroCard({super.key, required this.character, required this.mode});
-
-  final CharacterModel character;
-  final LearningMode mode;
-
-  String get modeTitle {
-    switch (mode) {
-      case LearningMode.model:
-        return '見本モード';
-      case LearningMode.practice:
-        return '練習モード';
-      case LearningMode.collection:
-        return 'マイリスト';
-    }
-  }
-
-  String get modeDescription {
-    switch (mode) {
-      case LearningMode.model:
-        return '見本の文字は楷書系フォントで表示し、見本ボードでも補助線つきで確認できます。';
-      case LearningMode.practice:
-        return '練習中はスクロールしない固定レイアウトです。上の見本を見て、そのまま下の練習ボードに書けます。';
-      case LearningMode.collection:
-        return 'ひらがな・カタカナ・漢字から1文字ずつ選び、縦書きの語として登録できます。';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(colors: [Color(0xFFFFF7E3), Color(0xFFF2E5D1)]),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final singleColumn = constraints.maxWidth < 820;
-          return Flex(
-            direction: singleColumn ? Axis.vertical : Axis.horizontal,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Moji Practice App'),
-                    const SizedBox(height: 10),
-                    const Text('もじれん', style: TextStyle(fontSize: 42, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 12),
-                    Text(modeDescription),
-                  ],
-                ),
-              ),
-              SizedBox(width: singleColumn ? 0 : 24, height: singleColumn ? 18 : 0),
-              Container(
-                width: singleColumn ? double.infinity : 240,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.56),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(modeTitle),
-                    const SizedBox(height: 8),
-                    Text(character.glyph, style: kaishoDisplayStyle(context).copyWith(fontSize: 56)),
-                    const SizedBox(height: 8),
-                    Text(character.meaning),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
     );
   }
 }
@@ -761,12 +659,14 @@ class PanelCard extends StatelessWidget {
     required this.kicker,
     required this.trailing,
     required this.child,
+    this.expandChild = false,
   });
 
   final String title;
   final String kicker;
   final String trailing;
   final Widget child;
+  final bool expandChild;
 
   @override
   Widget build(BuildContext context) {
@@ -788,7 +688,7 @@ class PanelCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
-          child,
+          if (expandChild) Expanded(child: child) else child,
         ],
       ),
     );
@@ -1021,33 +921,6 @@ class RegisterDraftPreview extends StatelessWidget {
   }
 }
 
-class NoteTile extends StatelessWidget {
-  const NoteTile({super.key, required this.index, required this.text});
-
-  final int index;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF6EC),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE7C8AB)),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(radius: 14, backgroundColor: const Color(0xFFF7D4C5), child: Text('$index')),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text)),
-        ],
-      ),
-    );
-  }
-}
-
 class EmptyTile extends StatelessWidget {
   const EmptyTile({super.key, required this.message});
 
@@ -1085,7 +958,6 @@ class SavedCharacterTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final glyphs = item.text.characters.where((glyph) => glyph.trim().isNotEmpty).toList();
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: const Color(0xFFFFFAF3),
@@ -1176,6 +1048,17 @@ String scriptLabel(JapaneseScript script) {
       return 'カタカナ';
     case JapaneseScript.kanji:
       return '漢字';
+  }
+}
+
+String modeDescription(LearningMode mode) {
+  switch (mode) {
+    case LearningMode.model:
+      return '見本を大きく確認';
+    case LearningMode.practice:
+      return '上で見て下で書く';
+    case LearningMode.collection:
+      return '登録順に上から表示';
   }
 }
 
