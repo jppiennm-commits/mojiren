@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 
 import 'data.dart';
