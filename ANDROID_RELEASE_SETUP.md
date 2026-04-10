@@ -1,35 +1,35 @@
-# Android Release Setup
+# Android Local Release Setup
 
-Android 版を iPhone 版に影響を出さずに進めるためのメモです。
+Use this guide when you want to build an Android `AAB` locally instead of using Codemagic.
 
-## 今回入っているもの
+## Requirements
 
-- アプリ名のリソース化
-- Android adaptive icon 対応
-- `Codemagic` の `android-release` ワークフロー
-- `AAB` 出力対応
+- Flutter SDK
+- Android SDK
+- JDK
+- A working `flutter doctor`
 
-## アイコン
+Both `flutter` and `keytool` must be available from PowerShell.
 
-元画像:
+## 1. Create the upload keystore
 
-- [app-icon-source-1024.png](C:\Users\fermata\書き順アプリ\assets\branding\app-icon-source-1024.png)
+Run this from the project root:
 
-主な反映先:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tool\create_android_keystore.ps1
+```
 
-- [AndroidManifest.xml](C:\Users\fermata\書き順アプリ\android\app\src\main\AndroidManifest.xml)
-- [mipmap-anydpi-v26](C:\Users\fermata\書き順アプリ\android\app\src\main\res\mipmap-anydpi-v26)
+This creates `upload-keystore.jks` in the project root.
 
-## リリース署名
+If you want to pass the passwords from the command line:
 
-`android/app/build.gradle.kts` は `key.properties` があるときだけ release 署名を使います。
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tool\create_android_keystore.ps1 -StorePassword YOUR_STORE_PASSWORD -KeyPassword YOUR_KEY_PASSWORD
+```
 
-必要ファイル:
+## 2. Create android\key.properties
 
-- `android/key.properties`
-- keystore ファイル本体
-
-`key.properties` 例:
+Copy `android\key.properties.example` to `android\key.properties` and fill in the real values.
 
 ```properties
 storePassword=YOUR_STORE_PASSWORD
@@ -38,19 +38,41 @@ keyAlias=upload
 storeFile=../upload-keystore.jks
 ```
 
-## Codemagic
+## 3. Build the AAB
 
-使うワークフロー:
+Use the version from `pubspec.yaml`:
 
-- `ios-app-store`
-- `android-release`
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tool\build_android_aab.ps1
+```
 
-Android はまず `AAB` を作るところまで入っています。  
-Google Play への自動公開はまだ入れていません。
+Run analyze and tests before building:
 
-## 次に必要なこと
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tool\build_android_aab.ps1 -RunChecks
+```
 
-1. Android 用 keystore を作る
-2. `key.properties` を用意する
-3. Codemagic で `android-release` を実行する
-4. `build/app/outputs/bundle/release/*.aab` を Play Console にアップロードする
+Override the version for one build:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tool\build_android_aab.ps1 -BuildName 1.0.8 -BuildNumber 9
+```
+
+## Output
+
+The generated bundle is written here:
+
+`build\app\outputs\bundle\release\app-release.aab`
+
+## Related files
+
+- `android\app\build.gradle.kts`
+- `android\key.properties`
+- `android\key.properties.example`
+- `tool\create_android_keystore.ps1`
+- `tool\build_android_aab.ps1`
+
+## Notes
+
+- `android\key.properties` and `*.jks` are already ignored by git.
+- These Android changes do not change the iPhone build settings.
