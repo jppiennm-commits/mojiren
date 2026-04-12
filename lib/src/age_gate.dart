@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'ad_service.dart';
+
 enum AudienceAgeGroup { under13, over13 }
 
 extension AudienceAgeGroupText on AudienceAgeGroup {
@@ -49,6 +51,7 @@ class AgeGateController extends ChangeNotifier {
 
   Future<void> update(AudienceAgeGroup group) async {
     await const AgePreferenceStore().save(group);
+    await AudienceAdService.instance.configureFor(group);
     _group = group;
     notifyListeners();
   }
@@ -96,7 +99,12 @@ class _AgeGateShellState extends State<AgeGateShell> {
       setState(() => controller = null);
       return;
     }
-    setState(() => controller = AgeGateController(group));
+    final next = AgeGateController(group);
+    await AudienceAdService.instance.configureFor(group);
+    if (!mounted) {
+      return;
+    }
+    setState(() => controller = next);
   }
 
   Future<void> _select(AudienceAgeGroup group) async {

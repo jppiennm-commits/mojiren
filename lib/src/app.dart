@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import 'ad_service.dart';
 import 'age_gate.dart';
 import 'data.dart';
 import 'models.dart';
@@ -330,6 +332,8 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
                   },
                 ),
               ),
+              const SizedBox(height: 12),
+              const AudienceBannerSlot(),
             ],
           ),
         ),
@@ -728,6 +732,116 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class AudienceBannerSlot extends StatefulWidget {
+  const AudienceBannerSlot({super.key});
+
+  @override
+  State<AudienceBannerSlot> createState() => _AudienceBannerSlotState();
+}
+
+class _AudienceBannerSlotState extends State<AudienceBannerSlot> {
+  BannerAd? bannerAd;
+  AdSize? adSize;
+  AudienceAgeGroup? configuredGroup;
+  bool isLoading = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final group = AgeGateScope.maybeOf(context)?.group;
+    if (group != configuredGroup) {
+      configuredGroup = group;
+      _reloadAd();
+    }
+  }
+
+  @override
+  void dispose() {
+    bannerAd?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _reloadAd() async {
+    bannerAd?.dispose();
+    bannerAd = null;
+    adSize = null;
+
+    final group = configuredGroup;
+    if (group == null) {
+      if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
+
+    isLoading = true;
+    if (mounted) {
+      setState(() {});
+    }
+
+    final width = MediaQuery.sizeOf(context).width.truncate();
+    final size = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
+    if (!mounted || size == null) {
+      isLoading = false;
+      if (mounted) {
+        setState(() {});
+      }
+      return;
+    }
+
+    final ad = BannerAd(
+      adUnitId: AdMobIds.bannerAdUnitId,
+      size: size,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (!mounted) {
+            ad.dispose();
+            return;
+          }
+          setState(() {
+            bannerAd = ad as BannerAd;
+            adSize = size;
+            isLoading = false;
+          });
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            bannerAd = null;
+            adSize = null;
+            isLoading = false;
+          });
+        },
+      ),
+    );
+
+    await ad.load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = AudienceAdService.instance;
+    if (!service.isReady) {
+      return const SizedBox.shrink();
+    }
+    if (bannerAd == null || adSize == null) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: isLoading ? 56 : 0,
+      );
+    }
+    return SizedBox(
+      width: adSize!.width.toDouble(),
+      height: adSize!.height.toDouble(),
+      child: AdWidget(ad: bannerAd!),
     );
   }
 }
