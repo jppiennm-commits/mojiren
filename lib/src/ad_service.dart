@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -37,9 +38,13 @@ class AudienceAdService extends ChangeNotifier {
 
   bool _initialized = false;
   AudienceAgeGroup? _group;
+  RewardedAd? _rewardedAd;
+  bool _rewardedLoading = false;
 
   AudienceAgeGroup? get group => _group;
   bool get isReady => _initialized && _group != null;
+  bool get isRewardedReady => _rewardedAd != null;
+  bool get isRewardedLoading => _rewardedLoading;
 
   Future<void> configureFor(AudienceAgeGroup group) async {
     final requestConfiguration = switch (group) {
@@ -62,6 +67,74 @@ class AudienceAdService extends ChangeNotifier {
     }
 
     _group = group;
+    _rewardedAd?.dispose();
+    _rewardedAd = null;
     notifyListeners();
+    unawaited(preloadRewardedAd());
+  }
+
+  Future<void> preloadRewardedAd() async {
+    if (!_initialized || _group == null || _rewardedAd != null || _rewardedLoading) {
+      return;
+    }
+
+    _rewardedLoading = true;
+    notifyListeners();
+
+    await RewardedAd.load(
+      adUnitId: AdMobIds.rewardedAdUnitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          _rewardedLoading = false;
+          _rewardedAd = ad;
+          notifyListeners();
+        },
+        onAdFailedToLoad: (_) {
+          _rewardedLoading = false;
+          _rewardedAd = null;
+          notifyListeners();
+        },
+      ),
+    );
+  }
+
+  Future<bool> showRewardedAd() async {
+    final ad = _rewardedAd;
+    if (ad == null) {
+      unawaited(preloadRewardedAd());
+      return false;
+    }
+
+    _rewardedAd = null;
+    notifyListeners();
+
+    final completer = Completer<bool>();
+    var rewardEarned = false;
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        if (!completer.isCompleted) {
+          completer.complete(rewardEarned);
+        }
+        unawaited(preloadRewardedAd());
+      },
+      onAdFailedToShowFullScreenContent: (ad, _) {
+        ad.dispose();
+        if (!completer.isCompleted) {
+          completer.complete(false);
+        }
+        unawaited(preloadRewardedAd());
+      },
+    );
+
+    await ad.show(
+      onUserEarnedReward: (_, __) {
+        rewardEarned = true;
+      },
+    );
+
+    return completer.future;
   }
 }

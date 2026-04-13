@@ -453,6 +453,7 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
                       onPressed: selectedCharacter.hasStrokeModel ? resetModel : null,
                       child: const Text('最初に戻す'),
                     ),
+                    const RewardedVideoButton(),
                   ],
                 ),
               ),
@@ -647,6 +648,8 @@ class _StrokePracticeScreenState extends State<StrokePracticeScreen> {
             onChanged: (value) => setState(() => showGhostModel = value),
           ),
           const SizedBox(height: 8),
+          const RewardedVideoButton(compact: false),
+          const SizedBox(height: 12),
           FilledButton(
             onPressed: () => setState(() => practiceSetupDone = true),
             child: const Text('この設定で練習を始める'),
@@ -842,6 +845,55 @@ class _AudienceBannerSlotState extends State<AudienceBannerSlot> {
       width: adSize!.width.toDouble(),
       height: adSize!.height.toDouble(),
       child: AdWidget(ad: bannerAd!),
+    );
+  }
+}
+
+class RewardedVideoButton extends StatelessWidget {
+  const RewardedVideoButton({
+    super.key,
+    this.compact = true,
+  });
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AudienceAdService.instance,
+      builder: (context, _) {
+        final service = AudienceAdService.instance;
+        final enabled = service.isReady && (service.isRewardedReady || service.isRewardedLoading);
+
+        final button = FilledButton.icon(
+          onPressed: !enabled || service.isRewardedLoading
+              ? null
+              : () async {
+                  final rewarded = await service.showRewardedAd();
+                  if (!context.mounted) {
+                    return;
+                  }
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        rewarded ? 'ごほうび動画を見ました。続けて練習できます。' : '動画をまだ表示できませんでした。少し待ってもう一度お試しください。',
+                      ),
+                    ),
+                  );
+                },
+          icon: const Icon(Icons.ondemand_video_rounded),
+          label: Text(service.isRewardedLoading ? '動画を準備中...' : 'ごほうび動画'),
+        );
+
+        if (compact) {
+          return button;
+        }
+
+        return SizedBox(
+          width: double.infinity,
+          child: button,
+        );
+      },
     );
   }
 }
