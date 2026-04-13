@@ -6,17 +6,27 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'age_gate.dart';
 
 class AdMobIds {
-  static const androidAppId = 'ca-app-pub-3940256099942544~3347511713';
-  static const iosAppId = 'ca-app-pub-3940256099942544~1458002511';
+  static const androidAppId = 'ca-app-pub-4143663317477933~5659977244';
+  static const iosAppId = 'ca-app-pub-4143663317477933~4819939802';
 
-  static const androidBannerTestId = 'ca-app-pub-3940256099942544/9214589741';
-  static const iosBannerTestId = 'ca-app-pub-3940256099942544/2435281174';
+  static const androidBannerId = 'ca-app-pub-4143663317477933/9252784076';
+  static const iosBannerId = 'ca-app-pub-4143663317477933/8324282577';
+
+  static const androidRewardedId = 'ca-app-pub-4143663317477933/5177807691';
+  static const iosRewardedId = 'ca-app-pub-4143663317477933/8912883048';
 
   static String get bannerAdUnitId {
     if (kIsWeb) {
       throw UnsupportedError('Banner ads are not configured for web.');
     }
-    return Platform.isIOS ? iosBannerTestId : androidBannerTestId;
+    return Platform.isIOS ? iosBannerId : androidBannerId;
+  }
+
+  static String get rewardedAdUnitId {
+    if (kIsWeb) {
+      throw UnsupportedError('Rewarded ads are not configured for web.');
+    }
+    return Platform.isIOS ? iosRewardedId : androidRewardedId;
   }
 }
 
